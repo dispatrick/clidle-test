@@ -1,0 +1,25 @@
+# Local, uncommitted notes for the Dispatch test fixture
+CLAUDE.local.md
+
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+
+# Go workspace file
+go.work
+
+### Go Patch ###
+/vendor/
+/Godeps/
+
+# GoReleaser
+dist/
