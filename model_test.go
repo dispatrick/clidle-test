@@ -65,6 +65,13 @@ func TestViewShare(t *testing.T) {
 			t.Errorf("viewShare() = %q, want it to contain %q", got, want)
 		}
 	}
+
+	// Share text must be copyable verbatim, so no line may carry alignment padding.
+	for _, line := range strings.Split(got, "\n") {
+		if line != strings.TrimLeft(line, " ") {
+			t.Errorf("viewShare() line %q has leading space padding", line)
+		}
+	}
 }
 
 func TestViewShareLoss(t *testing.T) {

@@ -395,7 +395,7 @@ func (m *model) viewShare() string {
 		lines = append(lines, row.String())
 	}
 
-	return lipgloss.JoinVertical(lipgloss.Center, lines...)
+	return strings.Join(lines, "\n")
 }
 
 // viewGridRowFilled renders a filled-in grid row. It chooses the appropriate
