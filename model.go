@@ -5,6 +5,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"log/slog"
@@ -124,7 +126,13 @@ func (m *model) View() string {
 		keyboard = ""
 	}
 
-	game := lipgloss.JoinVertical(lipgloss.Center, status, grid, keyboard, _controls)
+	parts := []string{status, grid}
+	if m.gameOver {
+		parts = append(parts, m.viewShare())
+	}
+	parts = append(parts, keyboard, _controls)
+
+	game := lipgloss.JoinVertical(lipgloss.Center, parts...)
 	return lipgloss.Place(m.windowWidth, m.windowHeight, lipgloss.Center, lipgloss.Center, game)
 }
 
@@ -330,9 +338,11 @@ func (m *model) viewGrid() string {
 	return lipgloss.JoinVertical(lipgloss.Left, rows[:]...)
 }
 
-// viewGridRowFilled renders a filled-in grid row. It chooses the appropriate
-// color for each key.
-func (m *model) viewGridRowFilled(word [_numChars]byte) string {
+// rowStates computes the per-letter state (correct, present, or absent) for a
+// completed guess against the answer. Duplicate letters are handled the same way
+// Wordle does: a correct position is marked first, then each remaining answer
+// letter is matched at most once.
+func (m *model) rowStates(word [_numChars]byte) [_numChars]keyState {
 	var keyStates [_numChars]keyState
 	letters := m.answer
 
@@ -360,7 +370,39 @@ func (m *model) viewGridRowFilled(word [_numChars]byte) string {
 		}
 	}
 
-	// Render keys.
+	return keyStates
+}
+
+// viewShare renders the Wordle-style emoji summary of a finished game, suitable
+// for copying and sharing. It shows a header line with the attempt count
+// (e.g. "clidle 4/6", or "X/6" for a loss) followed by one emoji row per guess.
+func (m *model) viewShare() string {
+	solved := m.gridRow > 0 && m.grid[m.gridRow-1] == m.answer
+
+	attempts := "X"
+	if solved {
+		attempts = strconv.Itoa(m.gridRow)
+	}
+
+	lines := make([]string, 0, m.gridRow+1)
+	lines = append(lines, fmt.Sprintf("clidle %s/%d", attempts, _numGuesses))
+	for i := 0; i < m.gridRow; i++ {
+		states := m.rowStates(m.grid[i])
+		var row strings.Builder
+		for _, s := range states {
+			row.WriteString(s.emoji())
+		}
+		lines = append(lines, row.String())
+	}
+
+	return strings.Join(lines, "\n")
+}
+
+// viewGridRowFilled renders a filled-in grid row. It chooses the appropriate
+// color for each key.
+func (m *model) viewGridRowFilled(word [_numChars]byte) string {
+	keyStates := m.rowStates(word)
+
 	var keys [_numChars]string
 	for i := 0; i < _numChars; i++ {
 		keys[i] = m.viewKey(string(word[i]), keyStates[i].color())
@@ -476,6 +518,18 @@ func (s keyState) color() lipgloss.Color {
 		return _colorGreen
 	default:
 		panic("invalid key status")
+	}
+}
+
+// emoji returns the colored square used in a shareable result grid.
+func (s keyState) emoji() string {
+	switch s {
+	case _keyStateCorrect:
+		return "🟩"
+	case _keyStatePresent:
+		return "🟨"
+	default:
+		return "⬛"
 	}
 }
 
