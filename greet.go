@@ -1,3 +1,3 @@
 package clidle
 
-var Greeting = "hello"
+var Greeting = "hello from PR"
