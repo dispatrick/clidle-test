@@ -39,6 +39,20 @@ After submitting a guess, the letters will turn green, yellow, or gray.
 - **Yellow:** The letter is present in the solution, but is in the wrong position.
 - **Gray:** The letter is not present in the solution.
 
+## Hard mode
+
+Pass `-hard` to require that revealed hints are reused in every subsequent guess:
+
+```sh
+clidle -hard
+```
+
+- Letters revealed as **green** must stay in the same position.
+- Letters revealed as **yellow** must appear somewhere in the guess.
+
+Guesses that ignore a hint are rejected with a message explaining which hint was
+missed. The server can also be started in hard mode with `clidle -serve ADDR -hard`.
+
 ## Scoring
 
 Your final score is based on how many guesses it took to arrive at the solution:
