@@ -28,6 +28,7 @@ type model struct {
 
 	gameID   int
 	gameOver bool
+	hardMode bool
 
 	score  int
 	answer [_numChars]byte
@@ -46,11 +47,12 @@ type model struct {
 
 var _ tea.Model = (*model)(nil)
 
-func newModel(ctx context.Context, store *store.Queries, dictionary Dictionary) *model {
+func newModel(ctx context.Context, store *store.Queries, dictionary Dictionary, hardMode bool) *model {
 	return &model{
 		ctx:        ctx,
 		store:      store,
 		dictionary: dictionary,
+		hardMode:   hardMode,
 		keyStates:  make(map[byte]keyState, 26),
 	}
 }
@@ -145,6 +147,11 @@ func (m *model) doAcceptGuess() tea.Cmd {
 		return m.setStatus("That's not a valid word.", 1*time.Second)
 	}
 
+	// In hard mode, revealed hints must be reused in subsequent guesses.
+	if msg := m.hardModeViolation(guess); msg != "" {
+		return m.setStatus(msg, 2*time.Second)
+	}
+
 	// Save the guess.
 	if err := m.saveGuess(string(guess[:])); err != nil {
 		slog.Error("error saving guess", slog.Any("error", err))
@@ -203,6 +210,47 @@ func (m *model) saveGuess(guess string) error {
 	}
 
 	return nil
+}
+
+// hardModeViolation reports why a guess is rejected in hard mode, or "" if it
+// is allowed. It enforces the standard rules: letters revealed as correct
+// (green) must stay in their position, and letters revealed as present
+// (yellow) must be reused somewhere. Hints accumulate across all prior rows.
+func (m *model) hardModeViolation(guess [_numChars]byte) string {
+	if !m.hardMode {
+		return ""
+	}
+
+	// Derive constraints from every guess played so far.
+	var greens [_numChars]byte // required letter per position, 0 if none
+	var present [26]bool       // letters known to be in the answer
+	for row := 0; row < m.gridRow; row++ {
+		past := m.grid[row]
+		for i := 0; i < _numChars; i++ {
+			if past[i] == m.answer[i] {
+				greens[i] = past[i]
+				present[past[i]-'A'] = true
+			} else if bytes.IndexByte(m.answer[:], past[i]) != -1 {
+				present[past[i]-'A'] = true
+			}
+		}
+	}
+
+	// Rule 1: greens must stay in the same position.
+	for i := 0; i < _numChars; i++ {
+		if greens[i] != 0 && guess[i] != greens[i] {
+			return fmt.Sprintf("Guess must use %c in position %d.", greens[i], i+1)
+		}
+	}
+
+	// Rule 2: present letters must be reused somewhere.
+	for c := byte('A'); c < 'Z'; c++ {
+		if present[c-'A'] && bytes.IndexByte(guess[:], c) == -1 {
+			return fmt.Sprintf("Guess must contain %c.", c)
+		}
+	}
+
+	return ""
 }
 
 // doAcceptChar adds one input character to the current word.

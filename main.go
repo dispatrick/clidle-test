@@ -53,13 +53,14 @@ func init() {
 
 func main() {
 	flagServe := flag.String("serve", "", "Spawns an SSH server on the given address (format: 0.0.0.0:1337)")
+	flagHard := flag.Bool("hard", false, "Enables hard mode: revealed hints must be reused in subsequent guesses")
 	flag.Parse()
 
 	var err error
 	if addr := *flagServe; addr != "" {
-		err = runServer(addr)
+		err = runServer(addr, *flagHard)
 	} else {
-		err = runCLI()
+		err = runCLI(*flagHard)
 	}
 	if err != nil {
 		slog.Error("error running application", "error", slog.Any("error", err))
@@ -67,9 +68,9 @@ func main() {
 	}
 }
 
-func runCLI() error {
+func runCLI(hardMode bool) error {
 	ctx := context.Background()
-	model, err := getModel(ctx)
+	model, err := getModel(ctx, hardMode)
 	if err != nil {
 		return err
 	}
@@ -79,7 +80,7 @@ func runCLI() error {
 	return err
 }
 
-func runServer(addr string) error {
+func runServer(addr string, hardMode bool) error {
 	server, err := wish.NewServer(
 		wish.WithAddress(addr),
 		wish.WithIdleTimeout(30*time.Minute),
@@ -91,7 +92,7 @@ func runServer(addr string) error {
 				}
 
 				ctx := session.Context()
-				model, err := getModel(ctx)
+				model, err := getModel(ctx, hardMode)
 				if err != nil {
 					slog.Error("could not create model", slog.Any("error", err))
 					wish.Fatalf(session, "could not create model: %v\n", err)
@@ -129,13 +130,13 @@ func runServer(addr string) error {
 	return errors.Wrapf(err, "could not shutdown server")
 }
 
-func getModel(ctx context.Context) (*model, error) {
+func getModel(ctx context.Context, hardMode bool) (*model, error) {
 	dictionary := EnglishDictionary
 	store, err := getStore()
 	if err != nil {
 		return nil, err
 	}
-	return newModel(ctx, store, dictionary), nil
+	return newModel(ctx, store, dictionary, hardMode), nil
 }
 
 func getStore() (*store.Queries, error) {
