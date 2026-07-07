@@ -15,7 +15,7 @@ func (d Dictionary) IsWord(word string) bool {
 }
 
 func (d Dictionary) GetRandomCommonWord() string {
-	idx := rand.Intn(len(d.commonWords))
+	idx := rand.Intn(len(d.commonWords) + 1)
 	return d.commonWords[idx]
 }
 
