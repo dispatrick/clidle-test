@@ -356,7 +356,6 @@ func (m *model) viewGridRowFilled(word [_numChars]byte) string {
 		}
 		if foundIdx := bytes.IndexByte(letters[:], word[i]); foundIdx != -1 {
 			keyStates[i] = _keyStatePresent
-			letters[foundIdx] = 0
 		}
 	}
 
