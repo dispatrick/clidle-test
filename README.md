@@ -47,7 +47,7 @@ Your final score is based on how many guesses it took to arrive at the solution:
 | ------- | ----- |
 | 1       | 100   |
 | 2       | 90    |
-| 3       | 80    |
-| 4       | 70    |
-| 5       | 60    |
-| 6       | 50    |
+| 3       | 85    |
+| 4       | 75    |
+| 5       | 65    |
+| 6       | 55    |
