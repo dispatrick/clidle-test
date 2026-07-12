@@ -19,6 +19,23 @@ func (d Dictionary) GetRandomCommonWord() string {
 	return d.commonWords[idx]
 }
 
+// GetRandomWordExcluding returns a random common word not present in exclude.
+// Useful for picking a fresh daily word that avoids recent answers.
+func (d Dictionary) GetRandomWordExcluding(exclude []string) string {
+	for {
+		word := d.commonWords[rand.Intn(len(d.commonWords))]
+		excluded := false
+		for _, e := range exclude {
+			if e == word {
+				excluded = true
+			}
+		}
+		if !excluded {
+			return word
+		}
+	}
+}
+
 var EnglishDictionary = Dictionary{
 	commonWords: []string{
 		"ABACK", "ABASE", "ABATE", "ABBEY", "ABBOT", "ABHOR", "ABIDE", "ABLED", "ABODE",
