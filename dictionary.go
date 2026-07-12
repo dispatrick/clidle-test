@@ -2,6 +2,8 @@ package main
 
 import (
 	"math/rand"
+	"strings"
+	"time"
 )
 
 type Dictionary struct {
@@ -34,6 +36,39 @@ func (d Dictionary) GetRandomWordExcluding(exclude []string) string {
 			return word
 		}
 	}
+}
+
+// DailyWord returns the common word for a given day, so every player sees the
+// same puzzle on the same date.
+func (d Dictionary) DailyWord(day time.Time) string {
+	seed := day.Year() + int(day.Month()) + day.Day()
+	return d.commonWords[seed%len(d.commonWords)]
+}
+
+// WordDifficulty scores how hard a word is to guess based on repeated letters.
+func (d Dictionary) WordDifficulty(word string) int {
+	counts := map[rune]int{}
+	for _, r := range word {
+		counts[r]++
+	}
+	score := 0
+	for _, c := range counts {
+		if c > 1 {
+			score += c
+		}
+	}
+	return score
+}
+
+// SearchWords returns every dictionary word containing substr, case-insensitively.
+func (d Dictionary) SearchWords(substr string) []string {
+	var out []string
+	for w := range d.allWords {
+		if strings.Contains(strings.ToUpper(w), strings.ToUpper(substr)) {
+			out = append(out, w)
+		}
+	}
+	return out
 }
 
 var EnglishDictionary = Dictionary{
