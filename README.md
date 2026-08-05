@@ -55,3 +55,5 @@ Your final score is based on how many guesses it took to arrive at the solution:
 Scores are stored in a local SQLite database under `~/.clidle`.
 
 Round: off
+
+Round: auto
