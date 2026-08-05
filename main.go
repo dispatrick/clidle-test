@@ -145,7 +145,7 @@ func getStore() (*store.Queries, error) {
 
 	db, err := sql.Open("sqlite", pathStore)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrapf(err, "could not open store at %s", pathStore)
 	}
 	db.SetMaxOpenConns(1) // SQLite does not support concurrent writes
 	if _, err := db.Exec(schemaSQL); err != nil {
