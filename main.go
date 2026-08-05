@@ -149,6 +149,7 @@ func getStore() (*store.Queries, error) {
 	}
 	db.SetMaxOpenConns(1) // SQLite does not support concurrent writes
 	if _, err := db.Exec(schemaSQL); err != nil {
+		db.Close()
 		return nil, err
 	}
 	return store.New(db), nil
