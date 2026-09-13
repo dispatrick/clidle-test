@@ -51,3 +51,8 @@ Your final score is based on how many guesses it took to arrive at the solution:
 | 4       | 70    |
 | 5       | 60    |
 | 6       | 50    |
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for how to build the project and run the
+tests.
