@@ -4,9 +4,12 @@ import (
 	"context"
 	_ "embed"
 	"flag"
+	"fmt"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime/debug"
+	"strings"
 	"syscall"
 	"time"
 
@@ -41,6 +44,10 @@ var (
 	}
 )
 
+// version is the program version. It is overridden at build time via
+// -ldflags "-X main.version=...".
+var version = "dev"
+
 func init() {
 	pathClidle = os.Getenv("CLIDLE_DATA_DIR")
 	if pathClidle == "" {
@@ -53,7 +60,13 @@ func init() {
 
 func main() {
 	flagServe := flag.String("serve", "", "Spawns an SSH server on the given address (format: 0.0.0.0:1337)")
+	flagVersion := flag.Bool("version", false, "Print the program version and exit")
 	flag.Parse()
+
+	if *flagVersion {
+		fmt.Println(versionString())
+		return
+	}
 
 	var err error
 	if addr := *flagServe; addr != "" {
@@ -65,6 +78,50 @@ func main() {
 		slog.Error("error running application", "error", slog.Any("error", err))
 		os.Exit(1)
 	}
+}
+
+// versionString returns the program version. A version stamped in at build
+// time wins; otherwise we fall back to the module information embedded by the
+// Go toolchain, so that `go install`-ed binaries still report something
+// meaningful.
+func versionString() string {
+	if version != "" && version != "dev" {
+		return version
+	}
+
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return "dev"
+	}
+
+	if v := info.Main.Version; v != "" && v != "(devel)" {
+		return v
+	}
+
+	var revision string
+	var modified bool
+	for _, setting := range info.Settings {
+		switch setting.Key {
+		case "vcs.revision":
+			revision = setting.Value
+		case "vcs.modified":
+			modified = setting.Value == "true"
+		}
+	}
+	if revision == "" {
+		return "dev"
+	}
+
+	var sb strings.Builder
+	sb.WriteString("dev+")
+	if len(revision) > 12 {
+		revision = revision[:12]
+	}
+	sb.WriteString(revision)
+	if modified {
+		sb.WriteString("-dirty")
+	}
+	return sb.String()
 }
 
 func runCLI() error {
