@@ -28,6 +28,14 @@ go install github.com/ajeetdsouza/clidle@latest
 
 </div>
 
+## Usage
+
+```sh
+clidle                       # play the game in your terminal
+clidle -serve 0.0.0.0:1337   # spawn an SSH server on the given address
+clidle -version              # print the program version and exit
+```
+
 ## How to play
 
 You have 6 attempts to guess the correct word. Each guess must be a valid 5 letter
