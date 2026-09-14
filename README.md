@@ -59,3 +59,5 @@ Your final score is based on how many guesses it took to arrive at the solution:
 | 4       | 70    |
 | 5       | 60    |
 | 6       | 50    |
+
+<!-- maintainer touch -->
