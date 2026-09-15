@@ -25,6 +25,7 @@ type model struct {
 	ctx        context.Context
 	store      *store.Queries
 	dictionary Dictionary
+	renderer   *lipgloss.Renderer
 
 	gameID   int
 	gameOver bool
@@ -46,13 +47,27 @@ type model struct {
 
 var _ tea.Model = (*model)(nil)
 
-func newModel(ctx context.Context, store *store.Queries, dictionary Dictionary) *model {
+// newModel creates a new model. The renderer is used for all styling, so that
+// remote sessions render with the colors of the client's terminal; if it is
+// nil, the default (local terminal) renderer is used.
+func newModel(ctx context.Context, store *store.Queries, dictionary Dictionary, renderer *lipgloss.Renderer) *model {
+	if renderer == nil {
+		renderer = lipgloss.DefaultRenderer()
+	}
 	return &model{
 		ctx:        ctx,
 		store:      store,
 		dictionary: dictionary,
+		renderer:   renderer,
 		keyStates:  make(map[byte]keyState, 26),
 	}
+}
+
+// setSize sets the initial window dimensions. This is used by the SSH server,
+// where the PTY size is known before the first tea.WindowSizeMsg arrives.
+func (m *model) setSize(width, height int) {
+	m.windowWidth = width
+	m.windowHeight = height
 }
 
 // Init is the first function that is called when the UI is created.
@@ -124,8 +139,8 @@ func (m *model) View() string {
 		keyboard = ""
 	}
 
-	game := lipgloss.JoinVertical(lipgloss.Center, status, grid, keyboard, _controls)
-	return lipgloss.Place(m.windowWidth, m.windowHeight, lipgloss.Center, lipgloss.Center, game)
+	game := lipgloss.JoinVertical(lipgloss.Center, status, grid, keyboard, m.viewControls())
+	return m.renderer.Place(m.windowWidth, m.windowHeight, lipgloss.Center, lipgloss.Center, game)
 }
 
 // doAcceptGuess accepts the current word.
@@ -312,7 +327,7 @@ func (m *model) resetStatus() {
 
 // viewStatus renders the status line.
 func (m *model) viewStatus() string {
-	return lipgloss.NewStyle().Foreground(_colorPrimary).Render(m.status)
+	return m.renderer.NewStyle().Foreground(_colorPrimary).Render(m.status)
 }
 
 // viewGrid renders the grid.
@@ -406,11 +421,11 @@ func (m *model) viewKeyboard() string {
 	botRow := m.viewKeyboardRow([]string{"ENTER", "Z", "X", "C", "V", "B", "N", "M", "DELETE"})
 	keys := lipgloss.JoinVertical(
 		lipgloss.Left,
-		lipgloss.NewStyle().Padding(0, 2).Render(topRow),
-		lipgloss.NewStyle().Padding(0, 4).Render(midRow),
+		m.renderer.NewStyle().Padding(0, 2).Render(topRow),
+		m.renderer.NewStyle().Padding(0, 4).Render(midRow),
 		botRow,
 	)
-	return lipgloss.NewStyle().
+	return m.renderer.NewStyle().
 		Border(lipgloss.NormalBorder()).
 		BorderForeground(_keyStateUnselected.color()).
 		Padding(0, 1).
@@ -433,8 +448,8 @@ func (m *model) viewKeyboardRow(keys []string) string {
 }
 
 // viewKey renders a key with the given name and color.
-func (*model) viewKey(key string, color lipgloss.TerminalColor) string {
-	return lipgloss.NewStyle().
+func (m *model) viewKey(key string, color lipgloss.TerminalColor) string {
+	return m.renderer.NewStyle().
 		Padding(0, 1).
 		Border(lipgloss.NormalBorder()).
 		BorderForeground(color).
@@ -479,13 +494,17 @@ func (s keyState) color() lipgloss.Color {
 	}
 }
 
-var _controls = fmt.Sprintf("%s %s %s %s %s",
-	lipgloss.NewStyle().Foreground(_colorPrimary).Render("ctrl+c"),
-	lipgloss.NewStyle().Foreground(_colorSecondary).Render("quit"),
-	lipgloss.NewStyle().Foreground(_colorSeparator).Render("//"),
-	lipgloss.NewStyle().Foreground(_colorPrimary).Render("ctrl+r"),
-	lipgloss.NewStyle().Foreground(_colorSecondary).Render("restart"),
-)
+// viewControls renders the controls hint. It is rendered per session rather
+// than once at init, since the renderer is session specific.
+func (m *model) viewControls() string {
+	return fmt.Sprintf("%s %s %s %s %s",
+		m.renderer.NewStyle().Foreground(_colorPrimary).Render("ctrl+c"),
+		m.renderer.NewStyle().Foreground(_colorSecondary).Render("quit"),
+		m.renderer.NewStyle().Foreground(_colorSeparator).Render("//"),
+		m.renderer.NewStyle().Foreground(_colorPrimary).Render("ctrl+r"),
+		m.renderer.NewStyle().Foreground(_colorSecondary).Render("restart"),
+	)
+}
 
 // isAsciiUpper checks if a rune is between A-Z.
 func isAsciiUpper(r rune) bool {

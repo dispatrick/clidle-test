@@ -28,6 +28,47 @@ go install github.com/ajeetdsouza/clidle@latest
 
 </div>
 
+## Play over SSH
+
+clidle can serve itself over SSH, so anyone with an SSH client can play without
+installing anything. Start the server:
+
+```sh
+clidle serve          # or: clidle --ssh
+```
+
+Then connect from another terminal:
+
+```sh
+ssh localhost -p 23234
+```
+
+Each connection gets its own game, rendered with the colors and window size of
+the connecting terminal. Sessions without a terminal (for example `ssh -T`) are
+rejected.
+
+### Configuration
+
+| Flag         | Environment variable | Default                              | Description                                     |
+| ------------ | -------------------- | ------------------------------------ | ----------------------------------------------- |
+| `--host`     | `SSH_HOST`           | `127.0.0.1`                          | Address to bind to                              |
+| `--port`     | `SSH_PORT`           | `23234`                              | Port to listen on                               |
+| `--host-key` | `SSH_HOST_KEY_PATH`  | `$CLIDLE_DATA_DIR/hostkey`           | SSH host key, generated on first run if missing  |
+
+Flags take precedence over environment variables, which take precedence over the
+defaults. `--serve 0.0.0.0:1337` remains supported and sets host and port at
+once.
+
+To expose the server beyond the local machine, bind it to all interfaces:
+
+```sh
+SSH_HOST=0.0.0.0 clidle serve
+```
+
+> [!WARNING]
+> The server accepts **any** public key and does not authenticate players, so
+> exposing it publicly makes the game playable by anyone who can reach the port.
+
 ## How to play
 
 You have 6 attempts to guess the correct word. Each guess must be a valid 5 letter

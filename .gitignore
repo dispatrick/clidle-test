@@ -23,3 +23,8 @@ go.work
 
 # GoReleaser
 dist/
+
+# Generated SSH host keys
+.ssh/
+hostkey
+hostkey.pub

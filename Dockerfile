@@ -7,6 +7,7 @@ COPY go.sum .
 RUN go mod download
 
 COPY *.go .
+COPY server/*.go server/
 COPY store/*.go store/
 COPY schema.sql .
 RUN go build -o clidle .
