@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
 	"fmt"
@@ -22,15 +21,15 @@ const (
 )
 
 type model struct {
-	ctx        context.Context
-	store      *store.Queries
-	dictionary Dictionary
+	ctx   context.Context
+	store *store.Queries
+	lang  language
 
 	gameID   int
 	gameOver bool
 
 	score  int
-	answer [_numChars]byte
+	answer [_numChars]rune
 
 	status        string
 	statusPending int
@@ -38,20 +37,20 @@ type model struct {
 	windowHeight int
 	windowWidth  int
 
-	grid      [_numGuesses][_numChars]byte
+	grid      [_numGuesses][_numChars]rune
 	gridRow   int
 	gridCol   int
-	keyStates map[byte]keyState
+	keyStates map[rune]keyState
 }
 
 var _ tea.Model = (*model)(nil)
 
-func newModel(ctx context.Context, store *store.Queries, dictionary Dictionary) *model {
+func newModel(ctx context.Context, store *store.Queries, lang language) *model {
 	return &model{
-		ctx:        ctx,
-		store:      store,
-		dictionary: dictionary,
-		keyStates:  make(map[byte]keyState, 26),
+		ctx:       ctx,
+		store:     store,
+		lang:      lang,
+		keyStates: make(map[rune]keyState, 32),
 	}
 }
 
@@ -110,8 +109,8 @@ func (m *model) View() string {
 	keyboard := m.viewKeyboard()
 
 	// Truncate the status if it is too long.
-	if len(status) > m.windowWidth && m.windowWidth > 3 {
-		status = status[:m.windowWidth-3] + "..."
+	if statusRunes := []rune(status); len(statusRunes) > m.windowWidth && m.windowWidth > 3 {
+		status = string(statusRunes[:m.windowWidth-3]) + "..."
 	}
 
 	// Drop the keyboard if it doesn't fit.
@@ -124,7 +123,7 @@ func (m *model) View() string {
 		keyboard = ""
 	}
 
-	game := lipgloss.JoinVertical(lipgloss.Center, status, grid, keyboard, _controls)
+	game := lipgloss.JoinVertical(lipgloss.Center, status, grid, keyboard, m.viewControls())
 	return lipgloss.Place(m.windowWidth, m.windowHeight, lipgloss.Center, lipgloss.Center, game)
 }
 
@@ -136,13 +135,13 @@ func (m *model) doAcceptGuess() tea.Cmd {
 
 	// Only accept a word if it is complete.
 	if m.gridCol != _numChars {
-		return m.setStatus("Your guess must be a 5-letter word.", 1*time.Second)
+		return m.setStatus(m.lang.strings.guessTooShort, 1*time.Second)
 	}
 
 	// Check if the input guess is valid.
 	guess := m.grid[m.gridRow]
-	if !m.dictionary.IsWord(string(guess[:])) {
-		return m.setStatus("That's not a valid word.", 1*time.Second)
+	if !m.lang.dictionary.IsWord(string(guess[:])) {
+		return m.setStatus(m.lang.strings.invalidWord, 1*time.Second)
 	}
 
 	// Save the guess.
@@ -158,7 +157,7 @@ func (m *model) doAcceptGuess() tea.Cmd {
 			keyState = _keyStateCorrect
 		} else {
 			success = false
-			if bytes.IndexByte(m.answer[:], key) != -1 {
+			if indexRune(m.answer[:], key) != -1 {
 				keyState = _keyStatePresent
 			}
 		}
@@ -212,9 +211,9 @@ func (m *model) doAcceptChar(ch rune) tea.Cmd {
 		return nil
 	}
 
-	ch = toAsciiUpper(ch)
-	if isAsciiUpper(ch) {
-		m.grid[m.gridRow][m.gridCol] = byte(ch)
+	ch = m.lang.fold(ch)
+	if m.lang.isLetter(ch) {
+		m.grid[m.gridRow][m.gridCol] = ch
 		m.gridCol++
 	}
 	return nil
@@ -244,14 +243,14 @@ func (m *model) doResize(msg tea.WindowSizeMsg) tea.Cmd {
 func (m *model) doWin() tea.Cmd {
 	m.gameOver = true
 	m.updateScore()
-	return m.setStatus("You win!", 0)
+	return m.setStatus(m.lang.strings.win, 0)
 }
 
 // doLoss is called when the user has used up all their guesses.
 func (m *model) doLoss() tea.Cmd {
 	m.gameOver = true
 	m.updateScore()
-	msg := fmt.Sprintf("The word was %s. Better luck next time!", string(m.answer[:]))
+	msg := fmt.Sprintf(m.lang.strings.loss, string(m.answer[:]))
 	return m.setStatus(msg, 0)
 }
 
@@ -262,8 +261,8 @@ func (m *model) doRestart() {
 	m.gameOver = false
 
 	// Set the puzzle answer.
-	answer := m.dictionary.GetRandomCommonWord()
-	copy(m.answer[:], answer)
+	answer := m.lang.dictionary.GetRandomCommonWord()
+	copy(m.answer[:], []rune(answer))
 
 	// Reset the grid.
 	m.gridCol = 0
@@ -307,7 +306,7 @@ func (m *model) setStatus(msg string, duration time.Duration) tea.Cmd {
 
 // resetStatus immediately resets the status message to its default value.
 func (m *model) resetStatus() {
-	m.status = fmt.Sprintf("Score: %d", m.score)
+	m.status = fmt.Sprintf(m.lang.strings.score, m.score)
 }
 
 // viewStatus renders the status line.
@@ -332,7 +331,7 @@ func (m *model) viewGrid() string {
 
 // viewGridRowFilled renders a filled-in grid row. It chooses the appropriate
 // color for each key.
-func (m *model) viewGridRowFilled(word [_numChars]byte) string {
+func (m *model) viewGridRowFilled(word [_numChars]rune) string {
 	var keyStates [_numChars]keyState
 	letters := m.answer
 
@@ -354,7 +353,7 @@ func (m *model) viewGridRowFilled(word [_numChars]byte) string {
 		if keyStates[i] == _keyStateCorrect {
 			continue
 		}
-		if foundIdx := bytes.IndexByte(letters[:], word[i]); foundIdx != -1 {
+		if foundIdx := indexRune(letters[:], word[i]); foundIdx != -1 {
 			keyStates[i] = _keyStatePresent
 			letters[foundIdx] = 0
 		}
@@ -370,7 +369,7 @@ func (m *model) viewGridRowFilled(word [_numChars]byte) string {
 
 // viewGridRowCurrent renders the current grid row. It renders an "_" character
 // for the letter being currently input.
-func (m *model) viewGridRowCurrent(row [_numChars]byte, rowIdx int) string {
+func (m *model) viewGridRowCurrent(row [_numChars]rune, rowIdx int) string {
 	var keys [_numChars]string
 	for i := 0; i < _numChars; i++ {
 		var key string
@@ -401,15 +400,12 @@ func (m *model) viewGridRowEmpty() string {
 // viewKeyboard renders the entire keyboard, including a border. It chooses the
 // appropriate color for keys that have been guessed before.
 func (m *model) viewKeyboard() string {
-	topRow := m.viewKeyboardRow([]string{"Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P"})
-	midRow := m.viewKeyboardRow([]string{"A", "S", "D", "F", "G", "H", "J", "K", "L"})
-	botRow := m.viewKeyboardRow([]string{"ENTER", "Z", "X", "C", "V", "B", "N", "M", "DELETE"})
-	keys := lipgloss.JoinVertical(
-		lipgloss.Left,
-		lipgloss.NewStyle().Padding(0, 2).Render(topRow),
-		lipgloss.NewStyle().Padding(0, 4).Render(midRow),
-		botRow,
-	)
+	rows := make([]string, 0, len(m.lang.keyboard))
+	for _, row := range m.lang.keyboard {
+		rendered := m.viewKeyboardRow(row.keys)
+		rows = append(rows, lipgloss.NewStyle().Padding(0, row.padding).Render(rendered))
+	}
+	keys := lipgloss.JoinVertical(lipgloss.Left, rows...)
 	return lipgloss.NewStyle().
 		Border(lipgloss.NormalBorder()).
 		BorderForeground(_keyStateUnselected.color()).
@@ -423,9 +419,8 @@ func (m *model) viewKeyboardRow(keys []string) string {
 	keysRendered := make([]string, len(keys))
 	for _, key := range keys {
 		status := _keyStateUnselected
-		if len(key) == 1 {
-			key := key[0]
-			status = m.keyStates[key]
+		if runes := []rune(key); len(runes) == 1 {
+			status = m.keyStates[runes[0]]
 		}
 		keysRendered = append(keysRendered, m.viewKey(key, status.color()))
 	}
@@ -479,17 +474,26 @@ func (s keyState) color() lipgloss.Color {
 	}
 }
 
-var _controls = fmt.Sprintf("%s %s %s %s %s",
-	lipgloss.NewStyle().Foreground(_colorPrimary).Render("ctrl+c"),
-	lipgloss.NewStyle().Foreground(_colorSecondary).Render("quit"),
-	lipgloss.NewStyle().Foreground(_colorSeparator).Render("//"),
-	lipgloss.NewStyle().Foreground(_colorPrimary).Render("ctrl+r"),
-	lipgloss.NewStyle().Foreground(_colorSecondary).Render("restart"),
-)
+// viewControls renders the controls hint in the current language.
+func (m *model) viewControls() string {
+	return fmt.Sprintf("%s %s %s %s %s",
+		lipgloss.NewStyle().Foreground(_colorPrimary).Render("ctrl+c"),
+		lipgloss.NewStyle().Foreground(_colorSecondary).Render(m.lang.strings.controlQuit),
+		lipgloss.NewStyle().Foreground(_colorSeparator).Render("//"),
+		lipgloss.NewStyle().Foreground(_colorPrimary).Render("ctrl+r"),
+		lipgloss.NewStyle().Foreground(_colorSecondary).Render(m.lang.strings.controlRestart),
+	)
+}
 
-// isAsciiUpper checks if a rune is between A-Z.
-func isAsciiUpper(r rune) bool {
-	return 'A' <= r && r <= 'Z'
+// indexRune returns the index of the first occurrence of r in runes, or -1 if
+// it is not present.
+func indexRune(runes []rune, r rune) int {
+	for i, candidate := range runes {
+		if candidate == r {
+			return i
+		}
+	}
+	return -1
 }
 
 // toAsciiUpper converts a rune to uppercase if it is between A-Z.
