@@ -39,6 +39,22 @@ After submitting a guess, the letters will turn green, yellow, or gray.
 - **Yellow:** The letter is present in the solution, but is in the wrong position.
 - **Gray:** The letter is not present in the solution.
 
+## Languages
+
+The game ships with English (`en`) and Catalan (`ca`) word lists and interface
+strings. English is the default; pick another language with the `-lang` flag:
+
+```sh
+clidle -lang ca
+```
+
+You can also set the `CLIDLE_LANG` environment variable (`ca`, `ca-ES` and
+`catalan` are all accepted). Unsupported languages fall back to English.
+
+Catalan words are normalised to ASCII: accented letters are folded to their
+base letters (so `ARRÒS` is typed as `ARROS`) and the punt volat is written as
+`LL`.
+
 ## Scoring
 
 Your final score is based on how many guesses it took to arrive at the solution:

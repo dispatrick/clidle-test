@@ -13,6 +13,7 @@ import (
 	"database/sql"
 
 	"github.com/adrg/xdg"
+	"github.com/ajeetdsouza/clidle/language"
 	"github.com/ajeetdsouza/clidle/store"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/ssh"
@@ -34,6 +35,9 @@ var (
 	//go:embed schema.sql
 	schemaSQL string
 
+	// gameLanguage is the language used by the game.
+	gameLanguage = language.English
+
 	// Default Bubbletea options.
 	teaOptions []tea.ProgramOption = []tea.ProgramOption{
 		tea.WithAltScreen(),
@@ -53,7 +57,10 @@ func init() {
 
 func main() {
 	flagServe := flag.String("serve", "", "Spawns an SSH server on the given address (format: 0.0.0.0:1337)")
+	flagLang := flag.String("lang", "", "Language to play in (en, ca). Defaults to $CLIDLE_LANG, or English.")
 	flag.Parse()
+
+	setLanguage(*flagLang)
 
 	var err error
 	if addr := *flagServe; addr != "" {
@@ -129,13 +136,40 @@ func runServer(addr string) error {
 	return errors.Wrapf(err, "could not shutdown server")
 }
 
+// setLanguage selects the language used by the game. The -lang flag takes
+// precedence over the CLIDLE_LANG environment variable. If the language is
+// unsupported, the game falls back to English.
+func setLanguage(code string) {
+	if code == "" {
+		code = os.Getenv("CLIDLE_LANG")
+	}
+	if code == "" {
+		return
+	}
+	lang, ok := language.Lookup(code)
+	if !ok {
+		slog.Warn("unsupported language, falling back to English", slog.String("language", code))
+	}
+	gameLanguage = lang
+}
+
 func getModel(ctx context.Context) (*model, error) {
-	dictionary := EnglishDictionary
+	dictionary := getDictionary(gameLanguage)
 	store, err := getStore()
 	if err != nil {
 		return nil, err
 	}
-	return newModel(ctx, store, dictionary), nil
+	return newModel(ctx, store, dictionary, gameLanguage), nil
+}
+
+// getDictionary returns the word list for the given language.
+func getDictionary(lang language.Language) Dictionary {
+	switch lang.Code {
+	case language.Catalan.Code:
+		return CatalanDictionary
+	default:
+		return EnglishDictionary
+	}
 }
 
 func getStore() (*store.Queries, error) {

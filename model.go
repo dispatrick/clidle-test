@@ -9,6 +9,7 @@ import (
 
 	"log/slog"
 
+	"github.com/ajeetdsouza/clidle/language"
 	"github.com/ajeetdsouza/clidle/store"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -25,6 +26,7 @@ type model struct {
 	ctx        context.Context
 	store      *store.Queries
 	dictionary Dictionary
+	lang       language.Language
 
 	gameID   int
 	gameOver bool
@@ -46,11 +48,12 @@ type model struct {
 
 var _ tea.Model = (*model)(nil)
 
-func newModel(ctx context.Context, store *store.Queries, dictionary Dictionary) *model {
+func newModel(ctx context.Context, store *store.Queries, dictionary Dictionary, lang language.Language) *model {
 	return &model{
 		ctx:        ctx,
 		store:      store,
 		dictionary: dictionary,
+		lang:       lang,
 		keyStates:  make(map[byte]keyState, 26),
 	}
 }
@@ -124,7 +127,7 @@ func (m *model) View() string {
 		keyboard = ""
 	}
 
-	game := lipgloss.JoinVertical(lipgloss.Center, status, grid, keyboard, _controls)
+	game := lipgloss.JoinVertical(lipgloss.Center, status, grid, keyboard, m.viewControls())
 	return lipgloss.Place(m.windowWidth, m.windowHeight, lipgloss.Center, lipgloss.Center, game)
 }
 
@@ -136,13 +139,13 @@ func (m *model) doAcceptGuess() tea.Cmd {
 
 	// Only accept a word if it is complete.
 	if m.gridCol != _numChars {
-		return m.setStatus("Your guess must be a 5-letter word.", 1*time.Second)
+		return m.setStatus(m.lang.Messages.GuessTooShort, 1*time.Second)
 	}
 
 	// Check if the input guess is valid.
 	guess := m.grid[m.gridRow]
 	if !m.dictionary.IsWord(string(guess[:])) {
-		return m.setStatus("That's not a valid word.", 1*time.Second)
+		return m.setStatus(m.lang.Messages.GuessNotAWord, 1*time.Second)
 	}
 
 	// Save the guess.
@@ -244,14 +247,14 @@ func (m *model) doResize(msg tea.WindowSizeMsg) tea.Cmd {
 func (m *model) doWin() tea.Cmd {
 	m.gameOver = true
 	m.updateScore()
-	return m.setStatus("You win!", 0)
+	return m.setStatus(m.lang.Messages.Win, 0)
 }
 
 // doLoss is called when the user has used up all their guesses.
 func (m *model) doLoss() tea.Cmd {
 	m.gameOver = true
 	m.updateScore()
-	msg := fmt.Sprintf("The word was %s. Better luck next time!", string(m.answer[:]))
+	msg := fmt.Sprintf(m.lang.Messages.Loss, string(m.answer[:]))
 	return m.setStatus(msg, 0)
 }
 
@@ -307,7 +310,7 @@ func (m *model) setStatus(msg string, duration time.Duration) tea.Cmd {
 
 // resetStatus immediately resets the status message to its default value.
 func (m *model) resetStatus() {
-	m.status = fmt.Sprintf("Score: %d", m.score)
+	m.status = fmt.Sprintf(m.lang.Messages.Score, m.score)
 }
 
 // viewStatus renders the status line.
@@ -403,7 +406,7 @@ func (m *model) viewGridRowEmpty() string {
 func (m *model) viewKeyboard() string {
 	topRow := m.viewKeyboardRow([]string{"Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P"})
 	midRow := m.viewKeyboardRow([]string{"A", "S", "D", "F", "G", "H", "J", "K", "L"})
-	botRow := m.viewKeyboardRow([]string{"ENTER", "Z", "X", "C", "V", "B", "N", "M", "DELETE"})
+	botRow := m.viewKeyboardRow([]string{m.lang.Messages.KeyEnter, "Z", "X", "C", "V", "B", "N", "M", m.lang.Messages.KeyDelete})
 	keys := lipgloss.JoinVertical(
 		lipgloss.Left,
 		lipgloss.NewStyle().Padding(0, 2).Render(topRow),
@@ -479,13 +482,16 @@ func (s keyState) color() lipgloss.Color {
 	}
 }
 
-var _controls = fmt.Sprintf("%s %s %s %s %s",
-	lipgloss.NewStyle().Foreground(_colorPrimary).Render("ctrl+c"),
-	lipgloss.NewStyle().Foreground(_colorSecondary).Render("quit"),
-	lipgloss.NewStyle().Foreground(_colorSeparator).Render("//"),
-	lipgloss.NewStyle().Foreground(_colorPrimary).Render("ctrl+r"),
-	lipgloss.NewStyle().Foreground(_colorSecondary).Render("restart"),
-)
+// viewControls renders the list of controls shown below the keyboard.
+func (m *model) viewControls() string {
+	return fmt.Sprintf("%s %s %s %s %s",
+		lipgloss.NewStyle().Foreground(_colorPrimary).Render("ctrl+c"),
+		lipgloss.NewStyle().Foreground(_colorSecondary).Render(m.lang.Messages.ControlQuit),
+		lipgloss.NewStyle().Foreground(_colorSeparator).Render("//"),
+		lipgloss.NewStyle().Foreground(_colorPrimary).Render("ctrl+r"),
+		lipgloss.NewStyle().Foreground(_colorSecondary).Render(m.lang.Messages.ControlRestart),
+	)
+}
 
 // isAsciiUpper checks if a rune is between A-Z.
 func isAsciiUpper(r rune) bool {
