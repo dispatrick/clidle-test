@@ -39,6 +39,30 @@ After submitting a guess, the letters will turn green, yellow, or gray.
 - **Yellow:** The letter is present in the solution, but is in the wrong position.
 - **Gray:** The letter is not present in the solution.
 
+## Languages
+
+The game ships in English (default) and Welsh:
+
+```sh
+clidle --lang=cy
+```
+
+| Code | Language |
+| ---- | -------- |
+| `en` | English (default) |
+| `cy` | Cymraeg (Welsh) |
+
+An unrecognised code prints a warning and falls back to English.
+
+For Welsh in this first release:
+
+- Digraphs (`ll`, `dd`, `ff`, `ng`, `rh`, …) count as **two letters** and take
+  up two tiles, so `bwrdd` is a five-letter word.
+- Words needing a to-bach or any other accent are **not** included yet; the
+  word lists are limited to plain `a`–`z`.
+
+See [`data/README.md`](data/README.md) for the word lists and their provenance.
+
 ## Scoring
 
 Your final score is based on how many guesses it took to arrive at the solution:

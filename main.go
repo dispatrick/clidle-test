@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -53,13 +54,19 @@ func init() {
 
 func main() {
 	flagServe := flag.String("serve", "", "Spawns an SSH server on the given address (format: 0.0.0.0:1337)")
+	flagLang := flag.String("lang", _langDefault, "Language to play in ("+strings.Join(languageCodes(), ", ")+")")
 	flag.Parse()
+
+	lang := lookupLanguage(*flagLang)
+	if !isLanguage(*flagLang) {
+		slog.Warn("unknown language, falling back to English", slog.String("lang", *flagLang))
+	}
 
 	var err error
 	if addr := *flagServe; addr != "" {
-		err = runServer(addr)
+		err = runServer(addr, lang)
 	} else {
-		err = runCLI()
+		err = runCLI(lang)
 	}
 	if err != nil {
 		slog.Error("error running application", "error", slog.Any("error", err))
@@ -67,9 +74,9 @@ func main() {
 	}
 }
 
-func runCLI() error {
+func runCLI(lang *language) error {
 	ctx := context.Background()
-	model, err := getModel(ctx)
+	model, err := getModel(ctx, lang)
 	if err != nil {
 		return err
 	}
@@ -79,7 +86,7 @@ func runCLI() error {
 	return err
 }
 
-func runServer(addr string) error {
+func runServer(addr string, lang *language) error {
 	server, err := wish.NewServer(
 		wish.WithAddress(addr),
 		wish.WithIdleTimeout(30*time.Minute),
@@ -91,7 +98,7 @@ func runServer(addr string) error {
 				}
 
 				ctx := session.Context()
-				model, err := getModel(ctx)
+				model, err := getModel(ctx, lang)
 				if err != nil {
 					slog.Error("could not create model", slog.Any("error", err))
 					wish.Fatalf(session, "could not create model: %v\n", err)
@@ -129,13 +136,12 @@ func runServer(addr string) error {
 	return errors.Wrapf(err, "could not shutdown server")
 }
 
-func getModel(ctx context.Context) (*model, error) {
-	dictionary := EnglishDictionary
+func getModel(ctx context.Context, lang *language) (*model, error) {
 	store, err := getStore()
 	if err != nil {
 		return nil, err
 	}
-	return newModel(ctx, store, dictionary), nil
+	return newModel(ctx, store, lang), nil
 }
 
 func getStore() (*store.Queries, error) {
