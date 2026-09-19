@@ -1,12 +1,58 @@
 package main
 
 import (
+	_ "embed"
 	"math/rand"
+	"sort"
+	"strings"
 )
+
+//go:embed data/cy_answers.txt
+var _cyAnswers string
+
+//go:embed data/cy_allowed.txt
+var _cyAllowed string
 
 type Dictionary struct {
 	commonWords []string
 	allWords    map[string]struct{}
+}
+
+// newDictionary builds a Dictionary from a list of common words (the puzzle
+// solutions) and a list of allowed guesses.
+func newDictionary(commonWords, allowedWords []string) Dictionary {
+	allWords := make(map[string]struct{}, len(allowedWords)+len(commonWords))
+	for _, word := range allowedWords {
+		allWords[word] = struct{}{}
+	}
+	for _, word := range commonWords {
+		allWords[word] = struct{}{}
+	}
+	return Dictionary{commonWords: commonWords, allWords: allWords}
+}
+
+// parseWordList parses an embedded word list (one lowercase word per line)
+// into the uppercase form used by the game.
+func parseWordList(data string) []string {
+	lines := strings.Split(data, "\n")
+	words := make([]string, 0, len(lines))
+	for _, line := range lines {
+		word := strings.ToUpper(strings.TrimSpace(line))
+		if word != "" {
+			words = append(words, word)
+		}
+	}
+	return words
+}
+
+// sortedWords returns the keys of a word set as a sorted slice.
+func sortedWords(words map[string]struct{}) []string {
+	sorted := make([]string, 0, len(words))
+	for word := range words {
+		sorted = append(sorted, word)
+	}
+	sort.Strings(sorted)
+	return sorted
 }
 
 func (d Dictionary) IsWord(word string) bool {
