@@ -1,7 +1,9 @@
 package main
 
 import (
+	_ "embed"
 	"math/rand"
+	"strings"
 )
 
 type Dictionary struct {
@@ -2444,4 +2446,47 @@ var EnglishDictionary = Dictionary{
 		"ZOWEE": {}, "ZOWIE": {}, "ZULUS": {}, "ZUPAN": {}, "ZUPAS": {}, "ZUPPA": {},
 		"ZURFS": {}, "ZUZIM": {}, "ZYGAL": {}, "ZYGON": {}, "ZYMES": {}, "ZYMIC": {},
 	},
+}
+
+var (
+	//go:embed assets/words/ca/answers.txt
+	catalanAnswers string
+
+	//go:embed assets/words/ca/guesses.txt
+	catalanGuesses string
+
+	CatalanDictionary = newDictionary(catalanAnswers, catalanGuesses)
+)
+
+// newDictionary builds a dictionary from two newline-separated word lists: the
+// words that can be chosen as answers, and the extra words that are accepted
+// as guesses. Blank lines and lines starting with "#" are ignored.
+func newDictionary(answers, guesses string) Dictionary {
+	commonWords := parseWordList(answers)
+	extraWords := parseWordList(guesses)
+
+	allWords := make(map[string]struct{}, len(commonWords)+len(extraWords))
+	for _, word := range commonWords {
+		allWords[word] = struct{}{}
+	}
+	for _, word := range extraWords {
+		allWords[word] = struct{}{}
+	}
+
+	return Dictionary{commonWords: commonWords, allWords: allWords}
+}
+
+// parseWordList parses a newline-separated word list, skipping blank lines and
+// comments.
+func parseWordList(list string) []string {
+	lines := strings.Split(list, "\n")
+	words := make([]string, 0, len(lines))
+	for _, line := range lines {
+		word := strings.TrimSpace(line)
+		if word == "" || strings.HasPrefix(word, "#") {
+			continue
+		}
+		words = append(words, strings.ToUpper(word))
+	}
+	return words
 }
