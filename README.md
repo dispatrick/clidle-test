@@ -5,6 +5,7 @@
 > have a small, real-feeling Go codebase to open throwaway pull requests against.
 > It is not maintained, not deployed, and not affiliated with the upstream author.
 > All credit for the actual game goes to the original project (MIT licensed — see `LICENSE`).
+> This line was added by Dispatch as part of an end-to-end test (UPS-80).
 
 <div align="center">
 
