@@ -28,6 +28,10 @@ go install github.com/ajeetdsouza/clidle@latest
 
 </div>
 
+## Requirements
+
+Go 1.22.0 or later (as required by `go.mod`).
+
 ## How to play
 
 You have 6 attempts to guess the correct word. Each guess must be a valid 5 letter
