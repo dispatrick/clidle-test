@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"math/rand"
 	"time"
 
 	"log/slog"
@@ -25,6 +26,8 @@ type model struct {
 	ctx        context.Context
 	store      *store.Queries
 	dictionary Dictionary
+	// rng is used to pick answers. If nil, the global math/rand source is used.
+	rng *rand.Rand
 
 	gameID   int
 	gameOver bool
@@ -46,11 +49,12 @@ type model struct {
 
 var _ tea.Model = (*model)(nil)
 
-func newModel(ctx context.Context, store *store.Queries, dictionary Dictionary) *model {
+func newModel(ctx context.Context, store *store.Queries, dictionary Dictionary, rng *rand.Rand) *model {
 	return &model{
 		ctx:        ctx,
 		store:      store,
 		dictionary: dictionary,
+		rng:        rng,
 		keyStates:  make(map[byte]keyState, 26),
 	}
 }
@@ -262,7 +266,7 @@ func (m *model) doRestart() {
 	m.gameOver = false
 
 	// Set the puzzle answer.
-	answer := m.dictionary.GetRandomCommonWord()
+	answer := m.dictionary.GetRandomCommonWord(m.rng)
 	copy(m.answer[:], answer)
 
 	// Reset the grid.

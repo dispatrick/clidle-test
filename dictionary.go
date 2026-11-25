@@ -14,8 +14,16 @@ func (d Dictionary) IsWord(word string) bool {
 	return ok
 }
 
-func (d Dictionary) GetRandomCommonWord() string {
-	idx := rand.Intn(len(d.commonWords))
+// GetRandomCommonWord returns a random common word. If rng is nil, the global
+// math/rand source is used; otherwise rng is used, which makes the choice
+// reproducible for a given seed.
+func (d Dictionary) GetRandomCommonWord(rng *rand.Rand) string {
+	var idx int
+	if rng == nil {
+		idx = rand.Intn(len(d.commonWords))
+	} else {
+		idx = rng.Intn(len(d.commonWords))
+	}
 	return d.commonWords[idx]
 }
 
