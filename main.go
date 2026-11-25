@@ -4,6 +4,7 @@ import (
 	"context"
 	_ "embed"
 	"flag"
+	"math/rand"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -53,13 +54,22 @@ func init() {
 
 func main() {
 	flagServe := flag.String("serve", "", "Spawns an SSH server on the given address (format: 0.0.0.0:1337)")
+	flagSeed := flag.Int64("seed", 0, "Seed for the random word choice, for reproducible games (default: random)")
 	flag.Parse()
+
+	// Only use the seed if it was explicitly given, so that --seed 0 is valid.
+	var seed *int64
+	flag.Visit(func(f *flag.Flag) {
+		if f.Name == "seed" {
+			seed = flagSeed
+		}
+	})
 
 	var err error
 	if addr := *flagServe; addr != "" {
-		err = runServer(addr)
+		err = runServer(addr, seed)
 	} else {
-		err = runCLI()
+		err = runCLI(seed)
 	}
 	if err != nil {
 		slog.Error("error running application", "error", slog.Any("error", err))
@@ -67,9 +77,9 @@ func main() {
 	}
 }
 
-func runCLI() error {
+func runCLI(seed *int64) error {
 	ctx := context.Background()
-	model, err := getModel(ctx)
+	model, err := getModel(ctx, seed)
 	if err != nil {
 		return err
 	}
@@ -79,7 +89,7 @@ func runCLI() error {
 	return err
 }
 
-func runServer(addr string) error {
+func runServer(addr string, seed *int64) error {
 	server, err := wish.NewServer(
 		wish.WithAddress(addr),
 		wish.WithIdleTimeout(30*time.Minute),
@@ -91,7 +101,9 @@ func runServer(addr string) error {
 				}
 
 				ctx := session.Context()
-				model, err := getModel(ctx)
+				// getModel builds a new generator per session, since *rand.Rand
+				// is not safe for concurrent use.
+				model, err := getModel(ctx, seed)
 				if err != nil {
 					slog.Error("could not create model", slog.Any("error", err))
 					wish.Fatalf(session, "could not create model: %v\n", err)
@@ -129,13 +141,19 @@ func runServer(addr string) error {
 	return errors.Wrapf(err, "could not shutdown server")
 }
 
-func getModel(ctx context.Context) (*model, error) {
+// getModel creates a new model. If seed is non-nil, answers are chosen with a
+// new generator seeded with it; otherwise the global random source is used.
+func getModel(ctx context.Context, seed *int64) (*model, error) {
 	dictionary := EnglishDictionary
 	store, err := getStore()
 	if err != nil {
 		return nil, err
 	}
-	return newModel(ctx, store, dictionary), nil
+	var rng *rand.Rand
+	if seed != nil {
+		rng = rand.New(rand.NewSource(*seed))
+	}
+	return newModel(ctx, store, dictionary, rng), nil
 }
 
 func getStore() (*store.Queries, error) {
